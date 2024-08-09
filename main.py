@@ -58,19 +58,17 @@ def calculate_energy(wind_speeds, start_speed, rated_speed, max_speed, rated_pow
     power_generation = []
     for speed in wind_speeds:
         if speed < start_speed:
-            energy.append(0)
-            power_generation.append(0)
+            power_output = 0
         elif start_speed <= speed < rated_speed:
             power_output = rated_power * ((speed - start_speed) / (rated_speed - start_speed)) ** 3
-            energy.append(power_output)
-            power_generation.append(power_output)
         elif rated_speed <= speed <= max_speed:
-            energy.append(rated_power)
-            power_generation.append(rated_power)
+            power_output = rated_power
         else:
-            energy.append(0)
-            power_generation.append(0)
-    total_energy = np.sum(energy)  # Sum up energy generated for all the wind speeds
+            power_output = 0
+        power_generation.append(power_output)
+        energy.append(power_output * 1)  # Energy = Power * Time (1 hour in this case)
+
+    total_energy = np.sum(energy)  # Sum up energy generated for all the wind speeds in kWh
     return total_energy, power_generation
 
 def get_lat_lon_from_address(address):
@@ -103,108 +101,107 @@ def to_excel(df, metadata, filename='wind_data.xlsx'):
 
     return processed_data
 
-
 # -----------------------------------------------------------------------------
-# Draw the actual page
+# Main application
 
-# Set the title that appears at the top of the page.
-'''
-# ⚡ Wind Turbine Analysis
+def main():
+    # Set the title that appears at the top of the page.
+    st.title('⚡ Wind Turbine Analysis')
 
-Analyze potential wind turbine energy generation based on historical wind data.
-'''
+    # Add some spacing
+    st.markdown('''
+    Analyze potential wind turbine energy generation based on historical wind data.
+    ''')
 
-# Add some spacing
-''
-''
+    # Sidebar for Wind Turbine Parameters
+    st.sidebar.subheader('Wind Turbine Parameters')
+    rated_power = st.sidebar.number_input('Rated Power (KW)', value=10.0)
+    rated_wind_speed = st.sidebar.number_input('Rated Wind Speed (m/s)', value=10.0)
+    start_wind_speed = st.sidebar.number_input('Start Wind Speed (m/s)', value=3.0)
+    max_wind_speed = st.sidebar.number_input('Max Wind Speed (m/s)', value=40.0)
 
-# Sidebar for Wind Turbine Parameters
-st.sidebar.subheader('Wind Turbine Parameters')
-rated_power = st.sidebar.number_input('Rated Power (KW)', value=10.0)
-rated_wind_speed = st.sidebar.number_input('Rated Wind Speed (m/s)', value=10.0)
-start_wind_speed = st.sidebar.number_input('Start Wind Speed (m/s)', value=3.0)
-max_wind_speed = st.sidebar.number_input('Max Wind Speed (m/s)', value=40.0)
+    # Empty line for separation
+    st.sidebar.text("")
 
-# Empty line for separation
-st.sidebar.text("")
+    # Electricity Price section
+    st.sidebar.subheader('Electricity Price')
+    electricity_price = st.sidebar.number_input('USD per kWh', value=0.18)
 
-# Electricity Price section
-st.sidebar.subheader('Electricity Price')
-electricity_price = st.sidebar.number_input('USD per kWh', value=0.18)
+    # Layout: Start and End Date in columns, Address below
+    with st.form("location_form"):
+        col1, col2 = st.columns(2)
+        start_date = col1.date_input('Start Date', value=datetime(datetime.now().year, 1, 1))
+        end_date = col2.date_input('End Date', value=datetime(datetime.now().year, 1, 31))
+        address = st.text_input('Address', value="Warszawa, Aleje Jerozolimskie")
+        submitted = st.form_submit_button('Fetch Data')
 
-# Layout: Start and End Date in columns, Address below
-with st.form("location_form"):
-    col1, col2 = st.columns(2)
-    start_date = col1.date_input('Start Date', value=datetime(datetime.now().year, 1, 1))
-    end_date = col2.date_input('End Date', value=datetime(datetime.now().year, 1, 31))
-    address = st.text_input('Address', value="Warszawa, Aleje Jerozolimskie")
-    submitted = st.form_submit_button('Fetch Data')
+        if submitted:
+            latitude, longitude = get_lat_lon_from_address(address)
+            if latitude is not None and longitude is not None:
+                st.session_state['latitude'] = latitude
+                st.session_state['longitude'] = longitude
+                st.session_state['wind_data'] = fetch_wind_data(latitude, longitude, start_date, end_date)
+                st.session_state['metadata'] = {
+                    'Latitude': latitude,
+                    'Longitude': longitude,
+                    'Address': address,
+                    'Start Date': start_date.strftime('%Y-%m-%d'),
+                    'End Date': end_date.strftime('%Y-%m-%d')
+                }
 
-    if submitted:
-        latitude, longitude = get_lat_lon_from_address(address)
-        if latitude is not None and longitude is not None:
-            st.session_state['latitude'] = latitude
-            st.session_state['longitude'] = longitude
-            st.session_state['wind_data'] = fetch_wind_data(latitude, longitude, start_date, end_date)
-            st.session_state['metadata'] = {
-                'Latitude': latitude,
-                'Longitude': longitude,
-                'Address': address,
-                'Start Date': start_date.strftime('%Y-%m-%d'),
-                'End Date': end_date.strftime('%Y-%m-%d')
-            }
+    # Display the wind data if available
+    wind_data = st.session_state.get('wind_data', pd.DataFrame())
+    if not wind_data.empty:
+        st.header('Hourly Wind Data', divider='gray')
 
-# Display the wind data if available
-wind_data = st.session_state.get('wind_data', pd.DataFrame())
-if not wind_data.empty:
-    st.header('Hourly Wind Data', divider='gray')
+        # Calculate energy and power generation
+        total_energy, power_generation = calculate_energy(
+            wind_data['wind_speed_10m'], 
+            start_wind_speed, 
+            rated_wind_speed, 
+            max_wind_speed, 
+            rated_power
+        )
 
-    # Calculate energy and power generation
-    total_energy, power_generation = calculate_energy(
-        wind_data['wind_speed_10m'], 
-        start_wind_speed, 
-        rated_wind_speed, 
-        max_wind_speed, 
-        rated_power
-    )
+        wind_data['power_generation'] = power_generation
 
-    wind_data['power_generation'] = power_generation
+        # Calculate the Bill Total in USD
+        bill_total = total_energy * electricity_price  # No need to divide by 1000 since energy is already in kWh
 
-    # Calculate the Bill Total in USD
-    bill_total = total_energy / 1000 * electricity_price
+        # Plotly chart with dual axes
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=wind_data['date'], y=wind_data['wind_speed_10m'], mode='lines', name='Wind Speed (10m)', line=dict(color='rgb(30,144,255)')))  # Blue
+        fig.add_trace(go.Scatter(x=wind_data['date'], y=wind_data['wind_gusts_10m'], mode='lines', name='Wind Gusts (10m)', line=dict(color='rgb(173,216,230)')))  # Light Blue
+        fig.add_trace(go.Scatter(x=wind_data['date'], y=wind_data['power_generation'], mode='lines', name='Power Generation (kW)', line=dict(color='rgb(255,140,0)'), yaxis='y2'))  # Dark Orange
 
-    # Plotly chart with dual axes
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(x=wind_data['date'], y=wind_data['wind_speed_10m'], mode='lines', name='Wind Speed (10m)', line=dict(color='rgb(30,144,255)')))  # Blue
-    fig.add_trace(go.Scatter(x=wind_data['date'], y=wind_data['wind_gusts_10m'], mode='lines', name='Wind Gusts (10m)', line=dict(color='rgb(173,216,230)')))  # Light Blue
-    fig.add_trace(go.Scatter(x=wind_data['date'], y=wind_data['power_generation'], mode='lines', name='Power Generation (kW)', line=dict(color='rgb(255,140,0)'), yaxis='y2'))  # Dark Orange
+        fig.add_hline(y=max_wind_speed, line_dash="dash", line_color="red", annotation_text=f"Max Wind Speed ({max_wind_speed} m/s)", annotation_position="top left")
 
-    fig.add_hline(y=max_wind_speed, line_dash="dash", line_color="red", annotation_text=f"Max Wind Speed ({max_wind_speed} m/s)", annotation_position="top left")
+        fig.update_layout(
+            title="Hourly Wind Data and Power Generation",
+            yaxis=dict(title="Wind Speed (m/s)", titlefont=dict(color="rgb(30,144,255)"), tickfont=dict(color="rgb(30,144,255)")),
+            yaxis2=dict(title="Power Generation (kW)", titlefont=dict(color="rgb(255,140,0)"), tickfont=dict(color="rgb(255,140,0)"), overlaying="y", side="right"),
+            xaxis=dict(title="Date"),
+            legend=dict(x=0.01, y=-0.2, orientation="h", bordercolor="Black", borderwidth=1),
+            plot_bgcolor='rgba(0,0,0,0)'
+        )
 
-    fig.update_layout(
-        title="Hourly Wind Data and Power Generation",
-        yaxis=dict(title="Wind Speed (m/s)", titlefont=dict(color="rgb(30,144,255)"), tickfont=dict(color="rgb(30,144,255)")),
-        yaxis2=dict(title="Power Generation (kW)", titlefont=dict(color="rgb(255,140,0)"), tickfont=dict(color="rgb(255,140,0)"), overlaying="y", side="right"),
-        xaxis=dict(title="Date"),
-        legend=dict(x=0.01, y=-0.2, orientation="h", bordercolor="Black", borderwidth=1),
-        plot_bgcolor='rgba(0,0,0,0)'
-    )
+        st.plotly_chart(fig, use_container_width=True)
 
-    st.plotly_chart(fig, use_container_width=True)
+        st.header('Analysis', divider='gray')
 
-    st.header('Analysis', divider='gray')
+        col1, col2 = st.columns(2)
+        col1.metric("Total Energy Generated (kWh)", f"{total_energy:.2f} kWh", f"saved ${bill_total:.2f}", delta_color="normal")
+        col1.metric("Max Wind Speed (m/s)", f"{wind_data['wind_speed_10m'].max():.2f}", delta=f"{wind_data['wind_speed_10m'].max() - 28:.2f} m/s")
+        col2.metric("Average Wind Speed (m/s)", f"{wind_data['wind_speed_10m'].mean():.2f}", delta=f"{wind_data['wind_speed_10m'].mean() - 5.5:.2f} m/s")
+        col2.metric("Minimum Speed (m/s)", f"{start_wind_speed:.2f}", delta=f"{start_wind_speed - 0.5:.2f} m/s", delta_color="off")
 
-    col1, col2 = st.columns(2)
-    col1.metric("Total Energy Generated (kWh)", f"{total_energy/1000:.2f} kWh", f"saved ${bill_total:.2f}", delta_color="normal")
-    col1.metric("Max Wind Speed (m/s)", f"{wind_data['wind_speed_10m'].max():.2f}", delta=f"{wind_data['wind_speed_10m'].max() - 28:.2f} m/s")
-    col2.metric("Average Wind Speed (m/s)", f"{wind_data['wind_speed_10m'].mean():.2f}", delta=f"{wind_data['wind_speed_10m'].mean() - 5.5:.2f} m/s")
-    col2.metric("Minimum Speed (m/s)", f"{start_wind_speed:.2f}", delta=f"{start_wind_speed - 0.5:.2f} m/s", delta_color="off")
+        # Save Data button
+        filename = f"wind_data_{start_date.strftime('%Y%m%d')}_to_{end_date.strftime('%Y%m%d')}_{address.replace(' ', '_')}.xlsx"
+        df_xlsx = to_excel(wind_data, st.session_state['metadata'], filename)
 
-    # Save Data button
-    filename = f"wind_data_{start_date.strftime('%Y%m%d')}_to_{end_date.strftime('%Y%m%d')}_{address.replace(' ', '_')}.xlsx"
-    df_xlsx = to_excel(wind_data, st.session_state['metadata'], filename)
+        st.download_button(label='📥 Save Wind Data as Excel',
+                           data=df_xlsx,
+                           file_name=filename)
 
-    st.download_button(label='📥 Save Wind Data as Excel',
-                       data=df_xlsx,
-                       file_name=filename)
-
+if __name__ == "__main__":
+    main()
