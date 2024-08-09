@@ -51,6 +51,7 @@ This Streamlit-based application provides a comprehensive analysis of wind data 
 - `requests`: HTTP library for Python.
 - `geopy`: Geocoding library to convert addresses into latitude and longitude.
 - `plotly`: Interactive graphing library.
+- `xlsxwriter`: Saving data to Excel sheet.
 
 ## API
 
