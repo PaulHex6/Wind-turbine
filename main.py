@@ -9,7 +9,7 @@ from io import BytesIO
 
 # Set the title and favicon that appear in the browser's tab bar.
 st.set_page_config(
-    page_title='Wind Turbine Analysis',
+    page_title='WindProfit',
     page_icon='⚡',
 )
 
@@ -73,7 +73,7 @@ def calculate_energy(wind_speeds, start_speed, rated_speed, max_speed, rated_pow
 
 def get_lat_lon_from_address(address):
     """Convert address to latitude and longitude."""
-    geolocator = Nominatim(user_agent="wind_turbine_analysis")
+    geolocator = Nominatim(user_agent="wind_profit_analysis")
     location = geolocator.geocode(address)
     if location:
         return round(location.latitude, 2), round(location.longitude, 2)
@@ -106,11 +106,11 @@ def to_excel(df, metadata, filename='wind_data.xlsx'):
 
 def main():
     # Set the title that appears at the top of the page.
-    st.title('⚡ Wind Turbine Analysis')
+    st.title('⚡ WindProfit')
 
     # Add some spacing
     st.markdown('''
-    Analyze potential wind turbine energy generation based on historical wind data.
+    Analyze potential horizontal wind turbine energy generation based on historical wind data.
     ''')
 
     # Sidebar for Wind Turbine Parameters
@@ -123,16 +123,38 @@ def main():
     # Empty line for separation
     st.sidebar.text("")
 
-    # Electricity Price section
+    # Electricity Price section with updated default value
     st.sidebar.subheader('Electricity Price')
-    electricity_price = st.sidebar.number_input('USD per kWh', value=0.18)
+    electricity_price = st.sidebar.number_input('USD per kWh', value=0.3)
 
-    # Layout: Start and End Date in columns, Address below
+    # Layout: Start and End Date in the first row, Address, Latitude, Longitude, and Google Maps link in the second row, Fetch Data button in the third row
     with st.form("location_form"):
+        # First row: Start and End Date
         col1, col2 = st.columns(2)
         start_date = col1.date_input('Start Date', value=datetime(datetime.now().year, 1, 1))
         end_date = col2.date_input('End Date', value=datetime(datetime.now().year, 1, 31))
-        address = st.text_input('Address', value="Warszawa, Aleje Jerozolimskie")
+
+        # Second row: Address, Latitude, Longitude, and Fetch Data button
+        col3, col4, col5, col6 = st.columns([2, 1, 1, 1])
+        address = col3.text_input('Address', value="Warszawa, Aleje Jerozolimskie")
+        latitude, longitude = None, None
+
+        if 'latitude' in st.session_state and 'longitude' in st.session_state:
+            latitude = st.session_state['latitude']
+            longitude = st.session_state['longitude']
+        
+        if latitude and longitude:
+            col4.text_input('Latitude', value=str(latitude), disabled=True)
+            col5.text_input('Longitude', value=str(longitude), disabled=True)
+            google_maps_link = f"https://www.google.com/maps?q={latitude},{longitude}"
+            col6.markdown(
+                f"<div style='text-align: center; color: #6c757d; font-size: small;'>"
+                f"<a href='{google_maps_link}' style='color: #6c757d; text-decoration: none;'>"
+                f"Verify<br>Google Maps</a></div>",
+                unsafe_allow_html=True
+            )
+        
+        # Third row: Fetch Data button
         submitted = st.form_submit_button('Fetch Data')
 
         if submitted:
@@ -148,6 +170,17 @@ def main():
                     'Start Date': start_date.strftime('%Y-%m-%d'),
                     'End Date': end_date.strftime('%Y-%m-%d')
                 }
+                
+                # Update the input fields after data fetch
+                col4.text_input('Latitude', value=str(latitude), disabled=True)
+                col5.text_input('Longitude', value=str(longitude), disabled=True)
+                google_maps_link = f"https://www.google.com/maps?q={latitude},{longitude}"
+                col6.markdown(
+                    f"<div style='text-align: center; color: #6c757d; font-size: small;'>"
+                    f"<a href='{google_maps_link}' style='color: #6c757d; text-decoration: none;'>"
+                    f"Verify<br>Google Maps</a></div>",
+                    unsafe_allow_html=True
+                )
 
     # Display the wind data if available
     wind_data = st.session_state.get('wind_data', pd.DataFrame())
@@ -186,6 +219,9 @@ def main():
         )
 
         st.plotly_chart(fig, use_container_width=True)
+
+        # Source information
+        st.markdown("<div style='text-align:right; font-size:small;'><i>Source: Open-Meteo</i></div>", unsafe_allow_html=True)
 
         st.header('Analysis', divider='gray')
 
