@@ -53,22 +53,24 @@ def fetch_wind_data(latitude, longitude, start_date, end_date):
         return pd.DataFrame()
 
 def calculate_energy(wind_speeds, start_speed, rated_speed, max_speed, rated_power):
-    """Calculate the energy generation based on wind speed."""
-    energy = []
+    """Calculate the energy generation based on wind speed according to the given power curve."""
+    energy = 0
     power_generation = []
+
     for speed in wind_speeds:
         if speed < start_speed:
             power_output = 0
         elif start_speed <= speed < rated_speed:
             power_output = rated_power * ((speed - start_speed) / (rated_speed - start_speed)) ** 3
-        elif rated_speed <= speed <= max_speed:
-            power_output = rated_power
+        elif rated_speed <= speed < max_speed:
+            power_output = rated_power - ((speed - rated_speed) / (max_speed - rated_speed)) * rated_power
         else:
             power_output = 0
+        
         power_generation.append(power_output)
-        energy.append(power_output * 1)  # Energy = Power * Time (1 hour in this case)
+        energy += power_output  # accumulate energy over each time interval (assuming each interval is 1 hour)
 
-    total_energy = np.sum(energy)  # Sum up energy generated for all the wind speeds in kWh
+    total_energy = energy  # total energy in kWh, since each interval represents 1 hour
     return total_energy, power_generation
 
 def get_lat_lon_from_address(address):
@@ -110,7 +112,7 @@ def main():
 
     # Add some spacing
     st.markdown('''
-    Analyze potential horizontal wind turbine energy generation based on historical wind data.
+    Analyze potential wind turbine energy generation based on historical wind data.
     ''')
 
     # Sidebar for Wind Turbine Parameters
@@ -134,25 +136,9 @@ def main():
         start_date = col1.date_input('Start Date', value=datetime(datetime.now().year, 1, 1))
         end_date = col2.date_input('End Date', value=datetime(datetime.now().year, 1, 31))
 
-        # Second row: Address, Latitude, Longitude, and Fetch Data button
+        # Second row: Address, Latitude, Longitude, and Google Maps link
         col3, col4, col5, col6 = st.columns([2, 1, 1, 1])
         address = col3.text_input('Address', value="Warszawa, Aleje Jerozolimskie")
-        latitude, longitude = None, None
-
-        if 'latitude' in st.session_state and 'longitude' in st.session_state:
-            latitude = st.session_state['latitude']
-            longitude = st.session_state['longitude']
-        
-        if latitude and longitude:
-            col4.text_input('Latitude', value=str(latitude), disabled=True)
-            col5.text_input('Longitude', value=str(longitude), disabled=True)
-            google_maps_link = f"https://www.google.com/maps?q={latitude},{longitude}"
-            col6.markdown(
-                f"<div style='text-align: center; color: #6c757d; font-size: small;'>"
-                f"<a href='{google_maps_link}' style='color: #6c757d; text-decoration: none;'>"
-                f"Verify<br>Google Maps</a></div>",
-                unsafe_allow_html=True
-            )
         
         # Third row: Fetch Data button
         submitted = st.form_submit_button('Fetch Data')
@@ -170,17 +156,20 @@ def main():
                     'Start Date': start_date.strftime('%Y-%m-%d'),
                     'End Date': end_date.strftime('%Y-%m-%d')
                 }
-                
-                # Update the input fields after data fetch
-                col4.text_input('Latitude', value=str(latitude), disabled=True)
-                col5.text_input('Longitude', value=str(longitude), disabled=True)
-                google_maps_link = f"https://www.google.com/maps?q={latitude},{longitude}"
-                col6.markdown(
-                    f"<div style='text-align: center; color: #6c757d; font-size: small;'>"
-                    f"<a href='{google_maps_link}' style='color: #6c757d; text-decoration: none;'>"
-                    f"Verify<br>Google Maps</a></div>",
-                    unsafe_allow_html=True
-                )
+    
+    # Display the latitude, longitude, and Google Maps link after data is fetched
+    if 'latitude' in st.session_state and 'longitude' in st.session_state:
+        latitude = st.session_state['latitude']
+        longitude = st.session_state['longitude']
+        col4.text_input('Latitude', value=str(latitude), disabled=True, key="latitude_input")
+        col5.text_input('Longitude', value=str(longitude), disabled=True, key="longitude_input")
+        google_maps_link = f"https://www.google.com/maps?q={latitude},{longitude}"
+        col6.markdown(
+            f"<div style='text-align: center; color: #6c757d; font-size: small;'>"
+            f"<a href='{google_maps_link}' style='color: #6c757d; text-decoration: none;'>"
+            f"Verify<br>Google Maps</a></div>",
+            unsafe_allow_html=True
+        )
 
     # Display the wind data if available
     wind_data = st.session_state.get('wind_data', pd.DataFrame())
