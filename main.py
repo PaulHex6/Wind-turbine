@@ -112,15 +112,15 @@ def main():
 
     # Add some spacing
     st.markdown('''
-    Analyze potential wind turbine energy generation based on historical wind data.
+    Analyze potential horizontal wind turbine energy generation based on historical wind data.
     ''')
 
     # Sidebar for Wind Turbine Parameters
     st.sidebar.subheader('Wind Turbine Parameters')
-    rated_power = st.sidebar.number_input('Rated Power (KW)', value=10.0)
-    rated_wind_speed = st.sidebar.number_input('Rated Wind Speed (m/s)', value=10.0)
-    start_wind_speed = st.sidebar.number_input('Start Wind Speed (m/s)', value=3.0)
-    max_wind_speed = st.sidebar.number_input('Max Wind Speed (m/s)', value=40.0)
+    rated_power = st.sidebar.number_input('Rated Power (KW)', value=10.0, format="%.1f", step=0.1)
+    rated_wind_speed = st.sidebar.number_input('Rated Wind Speed (m/s)', value=10.0, format="%.1f", step=0.1)
+    start_wind_speed = st.sidebar.number_input('Start Wind Speed (m/s)', value=3.0, format="%.1f", step=0.1)
+    max_wind_speed = st.sidebar.number_input('Max Wind Speed (m/s)', value=35.0, format="%.1f", step=0.1)
 
     # Empty line for separation
     st.sidebar.text("")
@@ -167,7 +167,7 @@ def main():
         col6.markdown(
             f"<div style='text-align: center; color: #6c757d; font-size: small;'>"
             f"<a href='{google_maps_link}' style='color: #6c757d; text-decoration: none;'>"
-            f"Verify<br>Google Maps</a></div>",
+            f"<br>See on<br>Google Maps</a></div>",
             unsafe_allow_html=True
         )
 
@@ -194,14 +194,16 @@ def main():
         fig = go.Figure()
         fig.add_trace(go.Scatter(x=wind_data['date'], y=wind_data['wind_speed_10m'], mode='lines', name='Wind Speed (10m)', line=dict(color='rgb(30,144,255)')))  # Blue
         fig.add_trace(go.Scatter(x=wind_data['date'], y=wind_data['wind_gusts_10m'], mode='lines', name='Wind Gusts (10m)', line=dict(color='rgb(173,216,230)')))  # Light Blue
-        fig.add_trace(go.Scatter(x=wind_data['date'], y=wind_data['power_generation'], mode='lines', name='Power Generation (kW)', line=dict(color='rgb(255,140,0)'), yaxis='y2'))  # Dark Orange
+        fig.add_trace(go.Scatter(x=wind_data['date'], y=wind_data['power_generation'], mode='lines', name='Power Generation (kW)', line=dict(color='rgb(238,65,28)'), yaxis='y2'))  # Orange
 
-        fig.add_hline(y=max_wind_speed, line_dash="dash", line_color="red", annotation_text=f"Max Wind Speed ({max_wind_speed} m/s)", annotation_position="top left")
-
+        # Check if any Wind Gusts (10m) value exceeds max_wind_speed
+        if (wind_data['wind_gusts_10m'] > max_wind_speed).any():
+            fig.add_hline(y=max_wind_speed, line_dash="dash", line_color="red", annotation_text=f"Max Wind Speed ({max_wind_speed} m/s)", annotation_position="top left")
+    
         fig.update_layout(
             title="Hourly Wind Data and Power Generation",
             yaxis=dict(title="Wind Speed (m/s)", titlefont=dict(color="rgb(30,144,255)"), tickfont=dict(color="rgb(30,144,255)")),
-            yaxis2=dict(title="Power Generation (kW)", titlefont=dict(color="rgb(255,140,0)"), tickfont=dict(color="rgb(255,140,0)"), overlaying="y", side="right"),
+            yaxis2=dict(title="Power Generation (kW)", titlefont=dict(color="rgb(238,65,28)"), tickfont=dict(color="rgb(238,65,28)"), overlaying="y", side="right"),
             xaxis=dict(title="Date"),
             legend=dict(x=0.01, y=-0.2, orientation="h", bordercolor="Black", borderwidth=1),
             plot_bgcolor='rgba(0,0,0,0)'
