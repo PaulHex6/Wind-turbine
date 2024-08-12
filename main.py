@@ -200,19 +200,25 @@ def main():
         if (wind_data['wind_gusts_10m'] > max_wind_speed).any():
             fig.add_hline(y=max_wind_speed, line_dash="dash", line_color="red", annotation_text=f"Max Wind Speed ({max_wind_speed} m/s)", annotation_position="top left")
     
+        # Add annotation (signature)
+        fig.add_annotation(
+            text="Source: Open-Meteo",
+            xref="paper", yref="paper",
+            x=1, y=0, showarrow=False,
+            xanchor='right', yanchor='auto',
+            font=dict(size=11)
+        )
+
         fig.update_layout(
             title="Hourly Wind Data and Power Generation",
             yaxis=dict(title="Wind Speed (m/s)", titlefont=dict(color="rgb(30,144,255)"), tickfont=dict(color="rgb(30,144,255)")),
             yaxis2=dict(title="Power Generation (kW)", titlefont=dict(color="rgb(238,65,28)"), tickfont=dict(color="rgb(238,65,28)"), overlaying="y", side="right"),
             xaxis=dict(title="Date"),
-            legend=dict(x=0.01, y=-0.2, orientation="h", bordercolor="Black", borderwidth=1),
+            legend=dict(x=0.01, y=-0.2, orientation="h", borderwidth=0),
             plot_bgcolor='rgba(0,0,0,0)'
         )
 
         st.plotly_chart(fig, use_container_width=True)
-
-        # Source information
-        st.markdown("<div style='text-align:right; font-size:small;'><i>Source: Open-Meteo</i></div>", unsafe_allow_html=True)
 
         st.header('Analysis', divider='gray')
 
@@ -220,7 +226,7 @@ def main():
         col1.metric("Total Energy Generated (kWh)", f"{total_energy:.2f} kWh", f"saved ${bill_total:.2f}", delta_color="normal")
         col1.metric("Max Wind Speed (m/s)", f"{wind_data['wind_speed_10m'].max():.2f}", delta=f"{wind_data['wind_speed_10m'].max() - 28:.2f} m/s")
         col2.metric("Average Wind Speed (m/s)", f"{wind_data['wind_speed_10m'].mean():.2f}", delta=f"{wind_data['wind_speed_10m'].mean() - 5.5:.2f} m/s")
-        col2.metric("Minimum Speed (m/s)", f"{start_wind_speed:.2f}", delta=f"{start_wind_speed - 0.5:.2f} m/s", delta_color="off")
+        col2.metric("Minimum Speed (m/s)", f"{start_wind_speed:.2f}", delta=f"{start_wind_speed - 0.5:.2f} m/s", delta_color="normal")
 
         # Save Data button
         filename = f"wind_data_{start_date.strftime('%Y%m%d')}_to_{end_date.strftime('%Y%m%d')}_{address.replace(' ', '_')}.xlsx"
