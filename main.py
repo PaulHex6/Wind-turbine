@@ -14,7 +14,7 @@ st.set_page_config(
 )
 
 # -----------------------------------------------------------------------------
-# Declare some useful functions.
+# Functions
 
 @st.cache_data(ttl=86400)
 def fetch_wind_data(latitude, longitude, start_date, end_date):
@@ -70,17 +70,21 @@ def calculate_energy(wind_speeds, start_speed, rated_speed, max_speed, rated_pow
         power_generation.append(power_output)
         energy += power_output  # accumulate energy over each time interval (assuming each interval is 1 hour)
 
-    total_energy = energy  # total energy in kWh, since each interval represents 1 hour
+    total_energy = energy  # total energy in kWh
     return total_energy, power_generation
 
 def get_lat_lon_from_address(address):
     """Convert address to latitude and longitude."""
     geolocator = Nominatim(user_agent="wind_profit_analysis")
-    location = geolocator.geocode(address)
-    if location:
-        return round(location.latitude, 2), round(location.longitude, 2)
-    else:
-        st.error(f"Could not find location for address: {address}")
+    try:
+        location = geolocator.geocode(address)
+        if location:
+            return location.latitude, location.longitude
+        else:
+            st.error(f"Could not find location for address: {address}")
+            return None, None
+    except Exception as e:
+        st.error(f"An error occurred while fetching the location: {e}")
         return None, None
 
 def to_excel(df, metadata, filename='wind_data.xlsx'):
@@ -107,10 +111,8 @@ def to_excel(df, metadata, filename='wind_data.xlsx'):
 # Main application
 
 def main():
-    # Set the title that appears at the top of the page.
     st.title('⚡ WindProfit')
 
-    # Add some spacing
     st.markdown('''
     Analyze potential horizontal wind turbine energy generation based on historical wind data.
     ''')
@@ -121,15 +123,12 @@ def main():
     rated_wind_speed = st.sidebar.number_input('Rated Wind Speed (m/s)', value=10.0, format="%.1f", step=0.1)
     start_wind_speed = st.sidebar.number_input('Start Wind Speed (m/s)', value=3.0, format="%.1f", step=0.1)
     max_wind_speed = st.sidebar.number_input('Max Wind Speed (m/s)', value=35.0, format="%.1f", step=0.1)
-
-    # Empty line for separation
     st.sidebar.text("")
 
     # Electricity Price section with updated default value
     st.sidebar.subheader('Electricity Price')
     electricity_price = st.sidebar.number_input('USD per kWh', value=0.3)
 
-    # Layout: Start and End Date in the first row, Address, Latitude, Longitude, and Google Maps link in the second row, Fetch Data button in the third row
     with st.form("location_form"):
         # First row: Start and End Date
         col1, col2 = st.columns(2)
@@ -161,8 +160,8 @@ def main():
     if 'latitude' in st.session_state and 'longitude' in st.session_state:
         latitude = st.session_state['latitude']
         longitude = st.session_state['longitude']
-        col4.text_input('Latitude', value=str(latitude), disabled=True, key="latitude_input")
-        col5.text_input('Longitude', value=str(longitude), disabled=True, key="longitude_input")
+        col4.text_input('Latitude', value=f"{latitude:.2f}", disabled=True, key="latitude_input")
+        col5.text_input('Longitude', value=f"{longitude:.2f}", disabled=True, key="longitude_input")
         google_maps_link = f"https://www.google.com/maps?q={latitude},{longitude}"
         col6.markdown(
             f"<div style='text-align: center; color: #6c757d; font-size: small;'>"
@@ -171,7 +170,7 @@ def main():
             unsafe_allow_html=True
         )
 
-    # Display the wind data if available
+    # Display the wind data
     wind_data = st.session_state.get('wind_data', pd.DataFrame())
     if not wind_data.empty:
         st.header('Hourly Wind Data', divider='gray')
@@ -190,7 +189,7 @@ def main():
         # Calculate the Bill Total in USD
         bill_total = total_energy * electricity_price  # No need to divide by 1000 since energy is already in kWh
 
-        # Plotly chart with dual axes
+        # Plotly chart
         fig = go.Figure()
         fig.add_trace(go.Scatter(x=wind_data['date'], y=wind_data['wind_speed_10m'], mode='lines', name='Wind Speed (10m)', line=dict(color='rgb(30,144,255)')))  # Blue
         fig.add_trace(go.Scatter(x=wind_data['date'], y=wind_data['wind_gusts_10m'], mode='lines', name='Wind Gusts (10m)', line=dict(color='rgb(173,216,230)')))  # Light Blue
@@ -200,7 +199,7 @@ def main():
         if (wind_data['wind_gusts_10m'] > max_wind_speed).any():
             fig.add_hline(y=max_wind_speed, line_dash="dash", line_color="red", annotation_text=f"Max Wind Speed ({max_wind_speed} m/s)", annotation_position="top left")
     
-        # Add annotation (signature)
+        # Add Open-Meteo annotation
         fig.add_annotation(
             text="Source: Open-Meteo",
             xref="paper", yref="paper",
@@ -226,7 +225,8 @@ def main():
         col1.metric("Total Energy Generated (kWh)", f"{total_energy:.2f} kWh", f"saved ${bill_total:.2f}", delta_color="normal")
         col1.metric("Max Wind Speed (m/s)", f"{wind_data['wind_speed_10m'].max():.2f}", delta=f"{wind_data['wind_speed_10m'].max() - 28:.2f} m/s")
         col2.metric("Average Wind Speed (m/s)", f"{wind_data['wind_speed_10m'].mean():.2f}", delta=f"{wind_data['wind_speed_10m'].mean() - 5.5:.2f} m/s")
-        col2.metric("Minimum Speed (m/s)", f"{start_wind_speed:.2f}", delta=f"{start_wind_speed - 0.5:.2f} m/s", delta_color="normal")
+        col2.metric("Minimum Speed (m/s)", f"{wind_data['wind_speed_10m'].min():.2f}", delta=f"{wind_data['wind_speed_10m'].min() - 0.5:.2f} m/s", delta_color="normal")
+
 
         # Save Data button
         filename = f"wind_data_{start_date.strftime('%Y%m%d')}_to_{end_date.strftime('%Y%m%d')}_{address.replace(' ', '_')}.xlsx"
